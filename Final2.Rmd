@@ -1,0 +1,215 @@
+---
+title: "Final"
+author: "Brandon Lewis"
+date: "March 17, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r, package-load, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(RSQLite)
+library(nycflights13)
+library(knitr)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+db<-src_sqlite("nycflights13", create = T)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+flights_sqlite<-tbl(db,"flights")
+airlines_sqlite <-tbl(db,"airlines")
+airports_sqlite<-tbl(db,"airports")
+planes_sqlite<-tbl(db,"planes")
+weather_sqlite<-tbl(db,"weather")
+
+flights=flights
+airlines=airlines
+airports=airports
+planes=planes
+weather=weather
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+flights_weather<-inner_join(
+  tbl(db,"flights"),
+  tbl(db,"weather"),
+  by=c("year","month","day","hour"))%>%
+  collect()%>%
+  mutate(cancelled=(is.na(arr_time)),
+         delayed=ifelse(dep_delay>0,1,0))     
+
+flights_weather$month<-as.factor(flights_weather$month)
+
+flights_planes<-inner_join(
+  tbl(db,"flights"),
+  tbl(db,"planes"),
+  by=c("tailnum"))%>%
+  collect()%>%
+  mutate(cancelled=(is.na(arr_time)),
+         delayed= ifelse(dep_delay>0,1,0)) 
+
+weather.c<-subset(flights_weather, cancelled==1)
+weather.d<-subset(flights_weather, delayed==1)
+plane.c<-subset(flights_planes, cancelled==1)
+plane.d<-subset(flights_planes, delayed==1)
+```
+
+## Part A
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit11<-glm(cancelled~temp+dewp+humid+wind_speed+precip+pressure+visib,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit11)
+```
+
+  Temperature, dew point, humidity, precipitation, pressure and visibility all have a negative effecg on flight cancellations. Wind-speed has a positive effect on flight cancellations, although the effect is not significant. Precipitation is not significant either. Each of the other variables is significant, howver small the effect might be.
+  
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit12<-glm(delayed~temp+humid+wind_speed+precip+pressure+visib,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit12)
+```
+
+  The same regression run on delays shows that all the variables are significant. Temperature, wind-speed and precipitation all have positie effects on delays, while the remaining variables all have negative effects. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+a1<-ggplot(weather.c,aes(x=wind_speed,y=dep_delay))
+a1+geom_point(aes(color=visib))
+```
+
+  This graph shows us the effect of wind-speed on delays. There is a slight upward trend in delays as wind-speed increases. The color indicates worse visibility as the shade of blue gets darker. As wind speed increases we can see that visibility gets slightly worse. Other than that there isn't really a clear connection between visibility and delays on this graph.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(weather.c,aes(x=visib))+stat_bin(binwidth=1)
+```
+
+  This histogram shows us the the relationship between poor visibilty and cancelled flights. With 10 being the worst visibility, we can see that most of the cancelled fights occur when visibility is at it's worst.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(weather.d,aes(x=visib))+stat_bin(binwidth=1)
+```
+
+  This histogram shows us the same thing as the previous histogram, but for delayed flights. The relationship seems to be very similar.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(weather.c,aes(x=wind_speed))+stat_bin(binwidth=0.5)
+```
+
+  This histogram shows us the relationship between wind-speed and number of cancelled flights. The majority of cancelled flights occur between 5 and 10 knots. This is surprising, I would have expected there to be more cancellations at much higher wind speeds.
+
+## Part B
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit12<-glm(cancelled~day+month+hour,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit12)
+```
+
+  The relationship between cancelled and the day of the month is very small, negative and insignificant. The relationship between the hour of the day and flight cancellations in also small, but is significant. The realtionship between the current month and flight cancellations seems to be significant for the fall, winter and spring months.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit22<-glm(delayed~day+month+hour,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit22)
+```
+
+  The relationship between delayed flights and and day is positive and significant. The relationship between delays and hour is also positive and significant. Also in this regression the each month is significant in its realtionship to flight delays. The months of January and June through December have the largest effets on delays.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+b1<-ggplot(weather.c,aes(x=hour,y=dep_delay))
+b1+geom_point(aes(color=month))
+```
+
+  This graph shows us the relationship between hour of the day and the length of delay. The delays seem to get longer as we move into the later parts of the day. Color represents the month of the year. May, June and July seem to have a lot of delays taking place in the later part of the day and for longer periods of time.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+b2<-ggplot(weather.c,aes(x=day,y=dep_delay))
+b2+geom_point(aes(color=month))
+```
+
+  This grpah shows us the relationship between day of the month and length of delay. There seems to be longer delays at the beginning and end of each month. The color indicates the month of the year. Again June and July seem to be resposible for many of the delays in June and July.
+
+## Part C
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit13<-glm(cancelled~dest+distance+air_time,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit13)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit23<-glm(delayed~dest+distance+air_time,family=binomial(link="probit"), data=flights_weather)
+```
+
+```{r}
+summary(probit23)
+```
+
+## Part D
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit14<-glm(cancelled~type+manufacturer+engines+seats+engine,family=binomial(link="probit"), data=flights_planes)
+```
+
+```{r}
+summary(probit14)
+```
+
+  Here we can see that the only characteristics that have an effect on cancellations are the number of seats, and fixed-wing single engines. Both number are very small however.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+probit24<-glm(delayed~type+manufacturer+engines+seats+engine,family=binomial(link="probit"), data=flights_planes)
+```
+
+```{r}
+summary(probit24)
+```
+
+  When we run the same regression but on delays, most of the nuber go fro negative to positive. engineTurbo-fan, engineTurbo-jet and engineReciprocating are the only significant characteristics, and also some of the only negative ones, meaning there are less delays with these engines.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+d1<-ggplot(plane.c,aes(x=seats,y=dep_delay))
+d1+geom_point(aes(color=month))
+```
+
+  This graph shows us that planes with between 0 and 200 seats have to most delays. It might be that these planes are the most common and that is why the realtionship is what it is. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+d2<-ggplot(plane.d,aes(x=type,y=dep_delay))
+d2+geom_point(aes(color=month))
+```
+
+This graph shows us that fixed wing multi-engine airplanes suffer the longest delays, followed by fixed wing single-engine then rotorcraft.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
